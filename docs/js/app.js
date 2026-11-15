@@ -2,6 +2,11 @@ import { renderLinePlot, renderHeatmap } from './plot.js';
 
 /* ── State ─────────────────────────────────────────────── */
 
+// One manifest per weight function; `manifest` is the reference copy that
+// defines the (shared) grids and temperature list.
+const WEIGHTS = ["uniform", "wien", "planck"];
+const WEIGHT_LABELS = { uniform: "Uniform", wien: "Wien", planck: "Planck" };
+const manifests = {};
 let manifest = null;
 let pyodide = null;
 let collapseCode = null;
@@ -47,7 +52,10 @@ const plotForm = $("plot-form");
 const plotPlaceholder = $("plot-placeholder");
 const plotModeSelect = $("plot-mode-select");
 const plotTempSelect = $("plot-temperature-select");
+const plotWeightSelect = $("plot-weight-select");
+const plotQuantitySelect = $("plot-quantity-select");
 const plotButton = $("plot-button");
+const weightHint = $("weight-hint");
 
 const plotSection = $("plot-section");
 const plotChart = $("plot-chart");
@@ -70,6 +78,44 @@ function getRadioValue(name) {
 function isTempCustom() { return getRadioValue("temp-mode") === "custom"; }
 function isEnergyCustom() { return getRadioValue("energy-mode") === "custom"; }
 function isAngleCustom() { return getRadioValue("angle-mode") === "custom"; }
+function currentWeight() { return getRadioValue("weight-fn") || "uniform"; }
+function currentQuantity() { return getRadioValue("quantity") || "sigma"; }
+
+/* ── Data access ───────────────────────────────────────── */
+
+function dataUrl(weight, file) { return `data/${weight}/${file}`; }
+
+async function fetchBuffer(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+  return new Uint8Array(await resp.arrayBuffer());
+}
+
+// Writes the stored table(s) needed for `quantity` at manifest index `idx`
+// into the Pyodide FS under `prefix` and returns the Python tuple expression
+// (sigma_bytes, dsigma_bytes | None) that reads them back.
+async function stageTables(weight, quantity, idx, prefix) {
+  const entry = manifests[weight].temperatures[idx];
+  const sigmaPath = `/tmp/${prefix}_sigma.npz`;
+  pyodide.FS.writeFile(sigmaPath, await fetchBuffer(dataUrl(weight, entry.file)));
+  if (quantity === "sigma") return `(open("${sigmaPath}","rb").read(), None)`;
+  const dsigmaPath = `/tmp/${prefix}_dsigma.npz`;
+  pyodide.FS.writeFile(dsigmaPath, await fetchBuffer(dataUrl(weight, entry.dsigma_dT_file)));
+  return `(open("${sigmaPath}","rb").read(), open("${dsigmaPath}","rb").read())`;
+}
+
+function updateWeightHint() {
+  const w = currentWeight();
+  const notes = {
+    uniform: "w = 1 across each incoming group.",
+    wien: "w = x³ e⁻ˣ with x = E/kT.",
+    planck: "w = x³/(eˣ − 1) with x = E/kT (Wien form above x = 25).",
+  };
+  const q = currentQuantity() === "sigma"
+    ? "Cross section σ in cm²."
+    : "Full temperature derivative dσ/dT in cm²/K, including the weight-function terms.";
+  weightHint.textContent = manifests[w] ? `${notes[w]} ${q}` : `${WEIGHT_LABELS[w]} tables are not available.`;
+}
 
 /* ── Helpers ───────────────────────────────────────────── */
 
@@ -352,6 +398,12 @@ function setupModeRadios(name, panels) {
 /* ── Event wiring ──────────────────────────────────────── */
 
 function wireDownloadEvents() {
+  document.querySelectorAll('input[name="weight-fn"], input[name="quantity"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      updateWeightHint();
+      updateButtonStates();
+    });
+  });
   setupModeRadios("temp-mode", { stored: "temp-stored-panel", custom: "temp-custom-panel" });
   setupModeRadios("energy-mode", { standard: "energy-standard-panel", custom: "energy-custom-panel" });
   setupModeRadios("angle-mode", { standard: "angle-standard-panel", custom: "angle-custom-panel" });
@@ -404,8 +456,9 @@ function updateButtonStates() {
   const hasTemp = isTempCustom()
     ? parseCustomTemperatures() !== null
     : tempSelect.selectedOptions.length > 0;
-  btnDownload.disabled = !hasTemp || !pyodide;
-  btnDownloadAll.disabled = !jszipLoaded || !pyodide || !manifest;
+  const hasWeight = !!manifests[currentWeight()];
+  btnDownload.disabled = !hasTemp || !pyodide || !hasWeight;
+  btnDownloadAll.disabled = !jszipLoaded || !pyodide || !manifest || !hasWeight;
   btnDownloadMetadata.disabled = !hasTemp || !pyodide;
   plotButton.disabled = !pyodide || !manifest;
 }
@@ -460,60 +513,26 @@ async function handleDownload() {
       ? `angle_boundaries=[${angleInfo.boundaries.join(",")}]`
       : `n_angle_bins=${angleInfo.count}`;
     const energyPyList = `[${energyBounds.join(",")}]`;
+    const weight = currentWeight();
+    const quantity = currentQuantity();
+    const temperatures = manifests[weight].temperatures;
 
     await pyodide.runPythonAsync("_dl_results = []");
-    const fetchedIndices = new Set();
 
     for (let i = 0; i < nT; i++) {
       showProgress(5 + Math.round((i / nT) * 80), `Processing temperature ${i + 1}/${nT}\u2026`);
       const T = temps[i];
       const bracket = findBracketingTemps(T);
+      const entryLo = temperatures[bracket.lo];
+      const entryHi = temperatures[bracket.hi];
 
-      if (bracket.exact) {
-        const entry = manifest.temperatures[bracket.lo];
-        if (!fetchedIndices.has(bracket.lo)) {
-          const resp = await fetch(`data/uniform/${entry.file}`);
-          if (!resp.ok) throw new Error(`Failed to fetch ${entry.file}: ${resp.status}`);
-          pyodide.FS.writeFile("/tmp/input.npz", new Uint8Array(await resp.arrayBuffer()));
-          fetchedIndices.add(bracket.lo);
-        }
-        if (identity) {
-          await pyodide.runPythonAsync(`
-import numpy as np, io
-_dl_results.append(np.load(io.BytesIO(open("/tmp/input.npz","rb").read()))["sigma_matrix"])
-`);
-        } else {
-          await pyodide.runPythonAsync(
-            `_dl_results.append(_collapse_to_array(\n    open("/tmp/input.npz","rb").read(),\n    ${energyPyList},\n    ${anglePyArg},\n))`
-          );
-        }
-      } else {
-        const entryLo = manifest.temperatures[bracket.lo];
-        const entryHi = manifest.temperatures[bracket.hi];
-        const [respLo, respHi] = await Promise.all([
-          fetch(`data/uniform/${entryLo.file}`),
-          fetch(`data/uniform/${entryHi.file}`),
-        ]);
-        if (!respLo.ok) throw new Error(`Failed to fetch ${entryLo.file}`);
-        if (!respHi.ok) throw new Error(`Failed to fetch ${entryHi.file}`);
-        const [bufLo, bufHi] = await Promise.all([respLo.arrayBuffer(), respHi.arrayBuffer()]);
-        pyodide.FS.writeFile("/tmp/input_lo.npz", new Uint8Array(bufLo));
-        pyodide.FS.writeFile("/tmp/input_hi.npz", new Uint8Array(bufHi));
-
-        if (identity) {
-          await pyodide.runPythonAsync(`
-import numpy as np, io
-_lo = np.load(io.BytesIO(open("/tmp/input_lo.npz","rb").read()))["sigma_matrix"]
-_hi = np.load(io.BytesIO(open("/tmp/input_hi.npz","rb").read()))["sigma_matrix"]
-_alpha = (np.log(${T}) - np.log(${entryLo.temperature_K})) / (np.log(${entryHi.temperature_K}) - np.log(${entryLo.temperature_K}))
-_dl_results.append((1.0 - _alpha) * _lo + _alpha * _hi)
-`);
-        } else {
-          await pyodide.runPythonAsync(
-            `_dl_results.append(collapse_interp(\n    open("/tmp/input_lo.npz","rb").read(),\n    open("/tmp/input_hi.npz","rb").read(),\n    ${entryLo.temperature_K}, ${entryHi.temperature_K}, ${T},\n    ${energyPyList},\n    ${anglePyArg},\n))`
-          );
-        }
-      }
+      const loFiles = await stageTables(weight, quantity, bracket.lo, "lo");
+      const hiFiles = bracket.exact ? "None" : await stageTables(weight, quantity, bracket.hi, "hi");
+      await pyodide.runPythonAsync(
+        `_dl_results.append(matrix_at_temperature(\n    "${quantity}", ${loFiles}, ${hiFiles},\n` +
+        `    ${entryLo.temperature_K}, ${entryHi.temperature_K}, ${T},\n    ${energyPyList},\n` +
+        `    ${anglePyArg},\n    identity=${identity ? "True" : "False"},\n))`
+      );
     }
 
     showProgress(88, "Building output file\u2026");
@@ -539,7 +558,7 @@ _buf.getvalue()
 
     showProgress(95, "Preparing download\u2026");
     const blob = new Blob([npyBytes.toJs()], { type: "application/octet-stream" });
-    triggerDownload(blob, buildFilename(temps, nCoarseGroups, nA));
+    triggerDownload(blob, buildFilename(weight, quantity, temps, nCoarseGroups, nA));
     showProgress(100, "Download complete.");
     hideProgress();
   } catch (err) {
@@ -551,14 +570,15 @@ _buf.getvalue()
   }
 }
 
-function buildFilename(temps, nG, nA) {
+function buildFilename(weight, quantity, temps, nG, nA) {
+  const stem = `compton_${quantity}_${weight}`;
   const nT = temps.length;
   if (nT === 1) {
     const bracket = findBracketingTemps(temps[0]);
-    if (bracket.exact) return `compton_sigma_T${String(bracket.lo).padStart(3, "0")}_${nG}g_${nA}a.npy`;
-    return `compton_sigma_T${temps[0].toExponential(3)}K_${nG}g_${nA}a.npy`;
+    if (bracket.exact) return `${stem}_T${String(bracket.lo).padStart(3, "0")}_${nG}g_${nA}a.npy`;
+    return `${stem}_T${temps[0].toExponential(3)}K_${nG}g_${nA}a.npy`;
   }
-  return `compton_sigma_${nT}T_${nG}g_${nA}a.npy`;
+  return `${stem}_${nT}T_${nG}g_${nA}a.npy`;
 }
 
 /* ── Bulk download ─────────────────────────────────────── */
@@ -573,7 +593,10 @@ async function handleDownloadAll() {
   const nCoarseGroups = energyBounds.length - 1;
   const nA = getAngleBinCount();
   const identity = isIdentityGrid(energyBounds, angleInfo);
-  const total = manifest.temperatures.length;
+  const weight = currentWeight();
+  const quantity = currentQuantity();
+  const temperatures = manifests[weight].temperatures;
+  const total = temperatures.length;
   const totalEstimate = nCoarseGroups * nCoarseGroups * nA * 8 * total;
 
   if (totalEstimate > 200 * 1024 * 1024) {
@@ -586,17 +609,19 @@ async function handleDownloadAll() {
   if (identity) {
     showProgress(0, `Fetching 0/${total}\u2026`);
     try {
+      // Raw stored tables; dsigma/dT files hold T_dsigma_dT = T * dsigma/dT
+      // (see the bundled manifest.json).
       const zip = new JSZip();
+      zip.file("manifest.json", JSON.stringify(manifests[weight], null, 2));
       for (let i = 0; i < total; i++) {
-        const t = manifest.temperatures[i];
-        const resp = await fetch(`data/uniform/${t.file}`);
-        if (!resp.ok) throw new Error(`Failed to fetch ${t.file}: ${resp.status}`);
-        zip.file(t.file, await resp.arrayBuffer());
+        const t = temperatures[i];
+        const file = quantity === "sigma" ? t.file : t.dsigma_dT_file;
+        zip.file(file, await fetchBuffer(dataUrl(weight, file)));
         showProgress(Math.round(((i + 1) / total) * 90), `Fetching ${i + 1}/${total}\u2026`);
       }
       showProgress(92, "Compressing ZIP\u2026");
       const blob = await zip.generateAsync({ type: "blob" });
-      triggerDownload(blob, "compton_all_temperatures_raw.zip");
+      triggerDownload(blob, `compton_${quantity}_${weight}_all_temperatures_raw.zip`);
       showProgress(100, "Download complete.");
       hideProgress();
     } catch (err) {
@@ -612,12 +637,12 @@ async function handleDownloadAll() {
   try {
     await pyodide.runPythonAsync("_dl_all_results = []");
     for (let i = 0; i < total; i++) {
-      const t = manifest.temperatures[i];
-      const resp = await fetch(`data/uniform/${t.file}`);
-      if (!resp.ok) throw new Error(`Failed to fetch ${t.file}: ${resp.status}`);
-      pyodide.FS.writeFile("/tmp/input.npz", new Uint8Array(await resp.arrayBuffer()));
+      const t = temperatures[i];
+      const files = await stageTables(weight, quantity, i, "all");
       await pyodide.runPythonAsync(
-        `_dl_all_results.append(_collapse_to_array(\n    open("/tmp/input.npz","rb").read(),\n    [${energyBounds.join(",")}],\n    ${angleInfo.boundaries ? `angle_boundaries=[${angleInfo.boundaries.join(",")}]` : `n_angle_bins=${angleInfo.count}`},\n))`
+        `_dl_all_results.append(matrix_at_temperature(\n    "${quantity}", ${files}, None,\n` +
+        `    ${t.temperature_K}, ${t.temperature_K}, ${t.temperature_K},\n    [${energyBounds.join(",")}],\n` +
+        `    ${angleInfo.boundaries ? `angle_boundaries=[${angleInfo.boundaries.join(",")}]` : `n_angle_bins=${angleInfo.count}`},\n))`
       );
       showProgress(Math.round(((i + 1) / total) * 85), `Processing ${i + 1}/${total}\u2026`);
     }
@@ -631,7 +656,7 @@ del _dl_all_results
 _buf.getvalue()
 `);
     const blob = new Blob([npyBytes.toJs()], { type: "application/octet-stream" });
-    triggerDownload(blob, `compton_sigma_all_${total}T_${nCoarseGroups}g_${nA}a.npy`);
+    triggerDownload(blob, `compton_${quantity}_${weight}_all_${total}T_${nCoarseGroups}g_${nA}a.npy`);
     showProgress(100, "Download complete.");
     hideProgress();
   } catch (err) {
@@ -775,23 +800,22 @@ function updatePlotSelectionInfo() {
 
 const npzCache = new Map();
 
-async function fetchNpzMatrix(tempIndex) {
-  if (npzCache.has(tempIndex)) return npzCache.get(tempIndex);
-  const entry = manifest.temperatures[tempIndex];
-  const resp = await fetch(`data/uniform/${entry.file}`);
-  if (!resp.ok) throw new Error(`Failed to fetch ${entry.file}: ${resp.status}`);
-  const npzBuf = await resp.arrayBuffer();
-  pyodide.FS.writeFile("/tmp/plot_input.npz", new Uint8Array(npzBuf));
+async function fetchNpzMatrix(weight, quantity, tempIndex) {
+  const key = `${weight}|${quantity}|${tempIndex}`;
+  if (npzCache.has(key)) return npzCache.get(key);
+  const entry = manifests[weight].temperatures[tempIndex];
+  const file = quantity === "sigma" ? entry.file : entry.dsigma_dT_file;
+  pyodide.FS.writeFile("/tmp/plot_input.npz", await fetchBuffer(dataUrl(weight, file)));
   const matProxy = await pyodide.runPythonAsync(`
 import numpy as np
-_f = np.load("/tmp/plot_input.npz")
-_m = _f["sigma_matrix"].astype(np.float64).ravel()
+_bytes = open("/tmp/plot_input.npz", "rb").read()
+_m = (_load_table(_bytes)["sigma"] if "${quantity}" == "sigma" else _load_dsigma_dT(_bytes)[0]).ravel()
 _m
 `);
   const flat = matProxy.toJs();
   matProxy.destroy();
   const result = { data: flat, nG: nFineGroups, nA: nFineAngleBins };
-  npzCache.set(tempIndex, result);
+  npzCache.set(key, result);
   return result;
 }
 
@@ -809,9 +833,16 @@ async function handlePlot() {
   plotFormError.hidden = true;
 
   try {
-    const { data: flat, nG, nA } = await fetchNpzMatrix(tempIdx);
-    const tempEntry = manifest.temperatures[tempIdx];
+    const weight = plotWeightSelect.value;
+    const quantity = plotQuantitySelect.value;
+    if (!manifests[weight]) throw new Error(`${WEIGHT_LABELS[weight]} tables are not available.`);
+    const { data: flat, nG, nA } = await fetchNpzMatrix(weight, quantity, tempIdx);
+    const tempEntry = manifests[weight].temperatures[tempIdx];
     const tempK = tempEntry.temperature_K;
+    const signed = quantity !== "sigma";
+    const qSymbol = signed ? "dσ/dT" : "σ";
+    const qUnits = signed ? "[cm²/K]" : "[cm²]";
+    const tag = `${WEIGHT_LABELS[weight]} ${qSymbol}`;
 
     if (mode === "ep-profile") {
       const eIdx = parseInt($("plot-e-group").value);
@@ -829,9 +860,9 @@ async function handlePlot() {
       const logX = $("plot-log-x").checked;
       const logY = $("plot-log-y").checked;
       const xLabel = "Outgoing energy E\u2032 [keV]";
-      const yLabel = "\u03C3(E \u2192 E\u2032, \u03BE) [cm\u00B2]";
-      const title = `E\u2032 profile: E = ${compactExp(groupMidpoint(eIdx) * 1e3)} eV, \u03BE\u2248${angleBinMidpoint(xiIdx).toFixed(3)}, T = ${compactExp(tempK * 8.617333262e-5)} eV`;
-      renderLinePlot(plotChart, xVals, yVals, { logX, logY, xLabel, yLabel, title });
+      const yLabel = `${qSymbol}(E \u2192 E\u2032, \u03BE) ${qUnits}`;
+      const title = `${tag} \u2014 E\u2032 profile: E = ${compactExp(groupMidpoint(eIdx) * 1e3)} eV, \u03BE\u2248${angleBinMidpoint(xiIdx).toFixed(3)}, T = ${compactExp(tempK * 8.617333262e-5)} eV`;
+      renderLinePlot(plotChart, xVals, yVals, { logX, logY, xLabel, yLabel, title, signed });
       plotDescription.textContent = title;
     } else if (mode === "xi-profile") {
       const eIdx = parseInt($("plot-e-group-xi").value);
@@ -849,9 +880,9 @@ async function handlePlot() {
       const logX = false;
       const logY = $("plot-log-y").checked;
       const xLabel = "\u03BE = cos \u03B8";
-      const yLabel = "\u03C3(E \u2192 E\u2032, \u03BE) [cm\u00B2]";
-      const title = `\u03BE profile: E = ${compactExp(groupMidpoint(eIdx) * 1e3)} eV, E\u2032 = ${compactExp(groupMidpoint(epIdx) * 1e3)} eV, T = ${compactExp(tempK * 8.617333262e-5)} eV`;
-      renderLinePlot(plotChart, xVals, yVals, { logX, logY, xLabel, yLabel, title });
+      const yLabel = `${qSymbol}(E \u2192 E\u2032, \u03BE) ${qUnits}`;
+      const title = `${tag} \u2014 \u03BE profile: E = ${compactExp(groupMidpoint(eIdx) * 1e3)} eV, E\u2032 = ${compactExp(groupMidpoint(epIdx) * 1e3)} eV, T = ${compactExp(tempK * 8.617333262e-5)} eV`;
+      renderLinePlot(plotChart, xVals, yVals, { logX, logY, xLabel, yLabel, title, signed });
       plotDescription.textContent = title;
     } else {
       const xiIdx = parseInt($("plot-xi-bin-matrix").value);
@@ -870,11 +901,12 @@ async function handlePlot() {
       }
       const xEdges = Array.from(fineBoundaries);
       const yEdges = Array.from(fineBoundaries);
-      const title = `E/E\u2032 matrix: \u03BE\u2248${angleBinMidpoint(xiIdx).toFixed(3)} (bin ${xiIdx}), T = ${compactExp(tempK * 8.617333262e-5)} eV`;
+      const title = `${tag} \u2014 E/E\u2032 matrix: \u03BE\u2248${angleBinMidpoint(xiIdx).toFixed(3)} (bin ${xiIdx}), T = ${compactExp(tempK * 8.617333262e-5)} eV`;
       renderHeatmap(plotChart, matrixData, xEdges, yEdges, {
         xLabel: "Outgoing energy E\u2032 [keV]",
         yLabel: "Incoming energy E [keV]",
-        zLabel: "\u03C3 [cm\u00B2]",
+        zLabel: `${qSymbol} ${qUnits}`,
+        signed,
         title
       });
       plotDescription.textContent = title;
@@ -897,9 +929,31 @@ async function handlePlot() {
 
 async function loadManifest() {
   try {
-    const resp = await fetch("data/uniform/manifest.json");
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-    manifest = await resp.json();
+    const results = await Promise.all(WEIGHTS.map(async (w) => {
+      const resp = await fetch(`data/${w}/manifest.json`);
+      if (!resp.ok) throw new Error(`${w}: HTTP ${resp.status}: ${resp.statusText}`);
+      return [w, await resp.json()];
+    }).map((p) => p.catch((err) => { console.error(err); return null; })));
+    for (const r of results) if (r) manifests[r[0]] = r[1];
+    manifest = manifests.uniform || Object.values(manifests)[0];
+    if (!manifest) throw new Error("no weight-function manifests found");
+    for (const [w, m] of Object.entries(manifests)) {
+      const sameGrid = m.n_groups === manifest.n_groups && m.n_angle_bins === manifest.n_angle_bins &&
+        m.temperatures.length === manifest.temperatures.length;
+      if (!sameGrid) throw new Error(`${w} manifest grid differs from ${manifest.weight_function}`);
+    }
+    for (const w of WEIGHTS) {
+      const available = !!manifests[w];
+      document.querySelectorAll(`input[name="weight-fn"][value="${w}"]`).forEach((r) => { r.disabled = !available; });
+      const opt = plotWeightSelect.querySelector(`option[value="${w}"]`);
+      if (opt) opt.disabled = !available;
+    }
+    if (!manifests[currentWeight()]) {
+      const first = WEIGHTS.find((w) => manifests[w]);
+      document.querySelector(`input[name="weight-fn"][value="${first}"]`).checked = true;
+      plotWeightSelect.value = first;
+    }
+    updateWeightHint();
   } catch (err) {
     loadingMsg.textContent = "Failed to load dataset metadata: " + err.message;
     loadingMsg.classList.remove("status");

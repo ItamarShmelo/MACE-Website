@@ -86,8 +86,9 @@
             The multigroup, angle-binned scattering cross sections are evaluated
             deterministically using the
             <strong>Kershaw&ndash;Prasad&ndash;Beason (1986)</strong> thermal
-            Compton kernel via the ComptonMatrixExact solver with uniform energy
-            weighting. The browser collapses fine-grid data to your custom
+            Compton kernel via the ComptonMatrixExact solver with uniform, Wien,
+            or Planck energy weighting, together with their full temperature
+            derivatives. The browser collapses fine-grid data to your custom
             resolution on the fly.
           </p>
           <a
@@ -141,6 +142,38 @@
             <div class="query-section">
               <div class="section-number">01</div>
               <div class="query-content">
+                <h4>Weight function &amp; quantity</h4>
+                <div class="mode-row" role="radiogroup" aria-label="Weight function">
+                  <label class="radio-label">
+                    <input type="radio" name="weight-fn" value="uniform" checked>
+                    <span>Uniform</span>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="weight-fn" value="wien">
+                    <span>Wien</span>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="weight-fn" value="planck">
+                    <span>Planck</span>
+                  </label>
+                </div>
+                <div class="mode-row" role="radiogroup" aria-label="Quantity">
+                  <label class="radio-label">
+                    <input type="radio" name="quantity" value="sigma" checked>
+                    <span>&sigma; [cm&sup2;]</span>
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="quantity" value="dsigma_dT">
+                    <span>d&sigma;/dT [cm&sup2;/K]</span>
+                  </label>
+                </div>
+                <p class="help" id="weight-hint"></p>
+              </div>
+            </div>
+
+            <div class="query-section">
+              <div class="section-number">02</div>
+              <div class="query-content">
                 <h4>Temperature</h4>
                 <div class="mode-row" role="radiogroup" aria-label="Temperature input mode">
                   <label class="radio-label">
@@ -164,14 +197,14 @@
                     Temperatures [K]
                     <textarea id="custom-temperature-input" rows="3" placeholder="5000, 1e6, 2.5e7"></textarea>
                   </label>
-                  <p class="help">Separate values with commas, spaces, or new lines. Interpolated in log-T.</p>
+                  <p class="help">Separate values with commas, spaces, or new lines. &sigma; is interpolated as a power law in T between stored temperatures.</p>
                   <p class="help" id="custom-temperature-error"></p>
                 </div>
               </div>
             </div>
 
             <div class="query-section">
-              <div class="section-number">02</div>
+              <div class="section-number">03</div>
               <div class="query-content">
                 <h4>Energy groups</h4>
                 <div class="mode-row" role="radiogroup" aria-label="Energy input mode">
@@ -214,7 +247,7 @@
             </div>
 
             <div class="query-section">
-              <div class="section-number">03</div>
+              <div class="section-number">04</div>
               <div class="query-content">
                 <h4>Scattering angle bins</h4>
                 <div class="mode-row" role="radiogroup" aria-label="Angle input mode">
@@ -313,6 +346,21 @@
               <label>
                 Temperature
                 <select id="plot-temperature-select"></select>
+              </label>
+              <label>
+                Weight function
+                <select id="plot-weight-select">
+                  <option value="uniform">Uniform</option>
+                  <option value="wien">Wien</option>
+                  <option value="planck">Planck</option>
+                </select>
+              </label>
+              <label>
+                Quantity
+                <select id="plot-quantity-select">
+                  <option value="sigma">&sigma; [cm&sup2;]</option>
+                  <option value="dsigma_dT">d&sigma;/dT [cm&sup2;/K]</option>
+                </select>
               </label>
             </div>
 
@@ -434,16 +482,33 @@
             = \frac{2\pi \displaystyle\int_{\mathcal{E}_{g-\frac{1}{2}}}^{\mathcal{E}_{g+\frac{1}{2}}}
             \int_{\mathcal{E}'_{g'-\frac{1}{2}}}^{\mathcal{E}'_{g'+\frac{1}{2}}}
             \int_{\xi_{i-\frac{1}{2}}}^{\xi_{i+\frac{1}{2}}}
-            \mathcal{K}\;d\xi\;d\mathcal{E}'\;d\mathcal{E}}
-            {\mathcal{E}_{g+\frac{1}{2}} - \mathcal{E}_{g-\frac{1}{2}}}$$
+            w(\mathcal{E},T)\,\mathcal{K}\;d\xi\;d\mathcal{E}'\;d\mathcal{E}}
+            {\displaystyle\int_{\mathcal{E}_{g-\frac{1}{2}}}^{\mathcal{E}_{g+\frac{1}{2}}} w(\mathcal{E},T)\;d\mathcal{E}}$$
           </p>
           <p>
             where \(\mathcal{K}(\mathcal{E},\,\mathcal{E}',\,\xi;\,T)\) is the
             thermal Compton kernel,
             \(\mathcal{E}\) and \(\mathcal{E}'\) are the incoming and outgoing
             photon energies,
-            \(\xi = \cos\theta\) is the cosine of the scattering angle, and
-            \(T\) is the electron temperature.
+            \(\xi = \cos\theta\) is the cosine of the scattering angle,
+            \(T\) is the electron temperature, and \(w\) is the weight function
+            over the incoming group, with \(x = \mathcal{E}/k_BT\):
+          </p>
+          <ul class="weight-list">
+            <li><strong>Uniform:</strong> \(w = 1\).</li>
+            <li><strong>Wien:</strong> \(w = x^3 e^{-x}\).</li>
+            <li><strong>Planck:</strong> \(w = x^3/(e^{x}-1)\) for \(x &lt; 25\),
+              and the Wien form \(x^3 e^{-x}\) above (they differ by
+              \(e^{-25} \approx 10^{-11}\)).</li>
+          </ul>
+          <p>
+            To avoid underflow, Wien and the Planck tail are evaluated relative
+            to each group's lower edge, \(x^3 e^{-(x - x_g)}\); this factor
+            cancels between numerator and denominator.
+            The derivative \(d\sigma/dT\) is the total temperature derivative of
+            the ratio above: the kernel term \(\partial\mathcal{K}/\partial T\)
+            plus, for Wien and Planck, the temperature dependence of the weight
+            in both numerator and denominator.
           </p>
           <div class="help" id="grid-summary">Loading grid information&hellip;</div>
         </div>
@@ -468,8 +533,8 @@
         </article>
         <article class="method-card reveal">
           <span class="method-icon orange">&#8628;</span>
-          <h3>Conservative collapse</h3>
-          <p>Minmod-limited reconstruction with kinematic output assignment for sub-group boundary straddling.</p>
+          <h3>Weight-aware collapse</h3>
+          <p>Incoming groups are combined with the weight function's own group integrals, so the collapse of &sigma; and d&sigma;/dT is exact on aligned grids.</p>
         </article>
         <article class="method-card reveal">
           <span class="method-icon cyan">.npy</span>
@@ -484,14 +549,42 @@
           <p>
             <strong>Accuracy:</strong> Collapsing to coarser grids is exact when
             requested boundaries align with stored fine-grid boundaries.
-            For non-aligned boundaries, the Compton kinematic formula determines
-            output-group assignment; typical relative error on dominant matrix
-            elements is &le;&thinsp;5%.
+            For non-aligned boundaries, a fine group that straddles a coarse
+            edge is split by the analytic integral of the weight function, and
+            its cross section is assumed constant across the split; outgoing
+            groups and angle bins are split in proportion to their width.
+            Totals over outgoing energy and angle are conserved, but the
+            distribution inside a fine group is not resolved, so small
+            off-peak elements, and near-diagonal elements at low
+            temperature where the kernel is narrower than a group, can carry
+            large relative errors. For accurate tables, place coarse edges on
+            stored fine-grid edges (the log-spaced option does this when the
+            group count divides 128).
+          </p>
+          <p style="margin-top: .5rem;">
+            <strong>Stored-table accuracy:</strong> Row totals (one incoming
+            group summed over outgoing groups and angle bins) are accurate to
+            about 3&times;10<sup>&minus;5</sup>. The least accurate entries are
+            in the most forward angle bin (\(\cos\theta\) from 0.98 to 1): below
+            about 8&times;10<sup>4</sup>&nbsp;K and for incoming energies above
+            roughly 34&nbsp;keV&nbsp;&times;&nbsp;\((T/10^3\,\mathrm{K})^{1/2}\),
+            its same-group and next-group entries carry errors of up to 0.2% of
+            the row's largest entry. Planck-weighted values in groups near
+            \(E/kT \approx 2\) carry up to 3&times;10<sup>&minus;5</sup> from
+            the Planck normalisation. Values are stored as 32-bit floats. See
+            MACE's <a href="https://github.com/ItamarShmelo/ComptonMatrixExact/blob/master/known_limitations.md" target="_blank" rel="noopener">known limitations</a>
+            for details.
           </p>
           <p style="margin-top: .5rem;">
             <strong>Temperature interpolation:</strong> Custom temperatures are
-            interpolated linearly in log-T between the two nearest stored values
-            (adjacent stored temperatures have a ratio of &approx;1.25).
+            interpolated between the two nearest stored values (adjacent stored
+            temperatures have a ratio of &approx;1.25). Each element of &sigma; is
+            interpolated linearly in \(\ln\sigma\) versus \(\ln T\), i.e. as a
+            power law in \(T\), which follows the steep temperature dependence of
+            the kernel tails; where either neighbour is zero it is interpolated
+            linearly in \(\ln T\). For d&sigma;/dT, which changes sign, the
+            quantity \(T\,d\sigma/dT\) is interpolated linearly in \(\ln T\) and
+            then divided by the requested temperature.
           </p>
         </div>
       </div>

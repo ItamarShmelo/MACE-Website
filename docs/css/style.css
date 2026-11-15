@@ -597,6 +597,8 @@ html[data-theme="light"] code { color: #6135b7; }
 .plot-axis-line { stroke: var(--text-soft); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .plot-data-line { fill: none; stroke: var(--coral); stroke-width: 2.7; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px rgba(255,79,120,.3)); }
 .plot-data-point { fill: var(--orange); stroke: var(--bg-elevated); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plot-data-line.negative { stroke: var(--cyan, #38c7ff); stroke-dasharray: 6 4; filter: none; }
+.plot-data-point.negative { fill: var(--bg-elevated); stroke: var(--cyan, #38c7ff); stroke-width: 1.4; }
 .plot-data-point:hover { r: 4.5; }
 .plot-tick-label, .plot-axis-label { fill: var(--muted); font-size: 13px; }
 .plot-axis-label { fill: var(--text-soft); font-weight: 650; }
@@ -639,6 +641,8 @@ html[data-theme="light"] code { color: #6135b7; }
 }
 .provenance-copy h3 { margin: .15rem 0 .45rem; font-size: clamp(1.1rem, 1.8vw, 1.35rem); }
 .provenance-copy p:last-child { margin: 0; color: var(--muted); }
+.provenance-copy .weight-list { margin: .2rem 0 .8rem; padding-left: 1.2rem; }
+.provenance-copy .weight-list li { margin: .25rem 0; }
 .paper-reference {
   position: relative;
   min-height: 112px;

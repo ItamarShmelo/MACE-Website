@@ -71,20 +71,23 @@ function superscript(n) {
 /* ── Line plot rendering ──────────────────────────────── */
 
 export function renderLinePlot(container, xVals, yVals, options = {}) {
-  const { logX = true, logY = true, xLabel = "x", yLabel = "y", title = "" } = options;
+  const { logX = true, logY = true, xLabel = "x", yLabel = "y", title = "", signed = false } = options;
 
   const width = 920, height = 540;
   const margin = { top: 50, right: 40, bottom: 65, left: 85 };
   const pw = width - margin.left - margin.right;
   const ph = height - margin.top - margin.bottom;
 
+  // Signed data on a log axis is drawn as |y|: solid where y > 0, dashed where y < 0.
+  const absMode = signed && logY;
   const drawable = [];
   for (let i = 0; i < xVals.length; i++) {
-    const x = xVals[i], y = yVals[i];
-    if (!isFinite(x) || !isFinite(y)) continue;
+    const x = xVals[i], raw = yVals[i];
+    if (!isFinite(x) || !isFinite(raw)) continue;
     if (logX && x <= 0) continue;
+    const y = absMode ? Math.abs(raw) : raw;
     if (logY && y <= 0) continue;
-    drawable.push({ x, y });
+    drawable.push({ x, y, raw, neg: raw < 0 });
   }
 
   if (drawable.length === 0) {
@@ -171,28 +174,49 @@ export function renderLinePlot(container, xVals, yVals, options = {}) {
     }, title));
   }
 
-  const pathParts = [];
-  let prevValid = false;
+  // One path per run of same-sign points (a single run unless absMode).
+  const runs = [];
+  let current = null;
+  let prev = null;
   for (const d of drawable) {
     const x = px(d.x), y = py(d.y);
     if (x < margin.left || x > width - margin.right || y < margin.top || y > height - margin.bottom) {
-      prevValid = false;
+      current = null;
+      prev = null;
       continue;
     }
-    pathParts.push(prevValid ? `L${x.toFixed(2)} ${y.toFixed(2)}` : `M${x.toFixed(2)} ${y.toFixed(2)}`);
-    prevValid = true;
+    const neg = absMode && d.neg;
+    if (!current || current.neg !== neg) {
+      current = { neg, parts: [] };
+      runs.push(current);
+      // Start at the previous point so the runs join up.
+      if (prev) current.parts.push(`M${prev.x.toFixed(2)} ${prev.y.toFixed(2)}`);
+    }
+    current.parts.push(current.parts.length ? `L${x.toFixed(2)} ${y.toFixed(2)}` : `M${x.toFixed(2)} ${y.toFixed(2)}`);
+    prev = { x, y };
   }
 
-  if (pathParts.length > 0) {
-    svg.appendChild(el("path", { d: pathParts.join(" "), class: "plot-data-line" }));
+  for (const run of runs) {
+    if (run.parts.length < 2) continue;
+    svg.appendChild(el("path", {
+      d: run.parts.join(" "),
+      class: run.neg ? "plot-data-line negative" : "plot-data-line",
+    }));
   }
 
   for (const d of drawable) {
     const x = px(d.x), y = py(d.y);
     if (x < margin.left || x > width - margin.right || y < margin.top || y > height - margin.bottom) continue;
-    const circle = el("circle", { cx: x, cy: y, r: 2.8, class: "plot-data-point" });
-    circle.appendChild(el("title", {}, `(${d.x.toExponential(4)}, ${d.y.toExponential(4)})`));
+    const circle = el("circle", { cx: x, cy: y, r: 2.8, class: absMode && d.neg ? "plot-data-point negative" : "plot-data-point" });
+    circle.appendChild(el("title", {}, `(${d.x.toExponential(4)}, ${d.raw.toExponential(4)})`));
     svg.appendChild(circle);
+  }
+
+  if (absMode && drawable.some((d) => d.neg)) {
+    svg.appendChild(el("text", {
+      x: width - margin.right, y: margin.top - 8,
+      "text-anchor": "end", class: "plot-tick-label"
+    }, "solid: positive · dashed: negative (|value| shown)"));
   }
 
   container.replaceChildren(svg);
@@ -225,16 +249,30 @@ function viridis(t) {
   return `rgb(${r},${g},${b})`;
 }
 
+function rampColor(stops, t) {
+  t = Math.max(0, Math.min(1, t));
+  const idx = t * (stops.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.min(lo + 1, stops.length - 1);
+  const f = idx - lo;
+  const ch = (k) => Math.round(stops[lo][k] * (1 - f) + stops[hi][k] * f);
+  return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
+}
+
+const WARM = [[48, 18, 30], [150, 30, 60], [240, 80, 70], [255, 170, 80], [255, 240, 170]];
+const COOL = [[18, 24, 52], [30, 60, 150], [50, 130, 230], [110, 200, 255], [200, 245, 255]];
+
 export function renderHeatmap(container, matrix, xEdges, yEdges, options = {}) {
-  const { xLabel = "x", yLabel = "y", zLabel = "z", title = "" } = options;
+  const { xLabel = "x", yLabel = "y", zLabel = "z", title = "", signed = false } = options;
 
   const nRows = matrix.length;
   const nCols = matrix[0].length;
 
+  // Signed data: colour by log10|v|, warm for v > 0 and cool for v < 0.
   let zMin = Infinity, zMax = -Infinity;
   for (let i = 0; i < nRows; i++) {
     for (let j = 0; j < nCols; j++) {
-      const v = matrix[i][j];
+      const v = signed ? Math.abs(matrix[i][j]) : matrix[i][j];
       if (v > 0 && isFinite(v)) {
         if (v < zMin) zMin = v;
         if (v > zMax) zMax = v;
@@ -244,6 +282,7 @@ export function renderHeatmap(container, matrix, xEdges, yEdges, options = {}) {
   if (!isFinite(zMin) || !isFinite(zMax) || zMin >= zMax) {
     zMin = 1e-30; zMax = 1;
   }
+  if (signed) zMin = Math.max(zMin, zMax * 1e-12);
 
   const logZMin = Math.log10(zMin);
   const logZMax = Math.log10(zMax);
@@ -281,7 +320,10 @@ export function renderHeatmap(container, matrix, xEdges, yEdges, options = {}) {
       if (cellW < 0.2) continue;
       const v = matrix[i][j];
       let color;
-      if (v <= 0 || !isFinite(v)) {
+      if (signed && v !== 0 && isFinite(v)) {
+        const t = (Math.log10(Math.abs(v)) - logZMin) / (logZMax - logZMin);
+        color = rampColor(v > 0 ? WARM : COOL, t);
+      } else if (signed || v <= 0 || !isFinite(v)) {
         color = "rgb(10,10,20)";
       } else {
         const t = (Math.log10(v) - logZMin) / (logZMax - logZMin);
@@ -341,14 +383,23 @@ export function renderHeatmap(container, matrix, xEdges, yEdges, options = {}) {
   const cbW = 16;
   const cbH = ph;
   const nStops = 128;
-  for (let k = 0; k < nStops; k++) {
-    const t = k / (nStops - 1);
-    const y = margin.top + (1 - t) * cbH;
-    const h = cbH / nStops + 0.5;
-    svg.appendChild(el("rect", {
-      x: cbX, y: y.toFixed(1), width: cbW, height: h.toFixed(1),
-      fill: viridis(t), "shape-rendering": "crispEdges"
-    }));
+  // Signed: the upper half is the positive scale (|v| growing upwards), the
+  // lower half the negative scale (|v| growing downwards).
+  const bars = signed
+    ? [{ top: margin.top, h: cbH / 2, ramp: WARM, up: true, sign: "+" },
+      { top: margin.top + cbH / 2, h: cbH / 2, ramp: COOL, up: false, sign: "−" }]
+    : [{ top: margin.top, h: cbH, ramp: null, up: true, sign: "" }];
+  for (const bar of bars) {
+    for (let k = 0; k < nStops; k++) {
+      const t = k / (nStops - 1);
+      const step = bar.h / nStops;
+      const y = bar.top + (bar.up ? 1 - t : t) * (bar.h - step);
+      const h = step + 0.5;
+      svg.appendChild(el("rect", {
+        x: cbX, y: y.toFixed(1), width: cbW, height: h.toFixed(1),
+        fill: bar.ramp ? rampColor(bar.ramp, t) : viridis(t), "shape-rendering": "crispEdges"
+      }));
+    }
   }
 
   svg.appendChild(el("rect", {
@@ -356,19 +407,21 @@ export function renderHeatmap(container, matrix, xEdges, yEdges, options = {}) {
     fill: "none", class: "colorbar-border"
   }));
 
-  const cbTicks = logTicks(zMin, zMax, 6);
-  for (const t of cbTicks) {
-    const frac = (Math.log10(t) - logZMin) / (logZMax - logZMin);
-    const y = margin.top + (1 - frac) * cbH;
-    if (y < margin.top || y > margin.top + cbH) continue;
-    svg.appendChild(el("line", {
-      x1: cbX + cbW, y1: y, x2: cbX + cbW + 4, y2: y,
-      class: "colorbar-tick"
-    }));
-    svg.appendChild(el("text", {
-      x: cbX + cbW + 7, y: y + 3.5,
-      "text-anchor": "start", class: "colorbar-label"
-    }, formatTickLabel(t, true)));
+  const cbTicks = logTicks(zMin, zMax, signed ? 4 : 6);
+  for (const bar of bars) {
+    for (const t of cbTicks) {
+      const frac = (Math.log10(t) - logZMin) / (logZMax - logZMin);
+      const y = bar.top + (bar.up ? 1 - frac : frac) * bar.h;
+      if (y < bar.top - 0.5 || y > bar.top + bar.h + 0.5) continue;
+      svg.appendChild(el("line", {
+        x1: cbX + cbW, y1: y, x2: cbX + cbW + 4, y2: y,
+        class: "colorbar-tick"
+      }));
+      svg.appendChild(el("text", {
+        x: cbX + cbW + 7, y: y + 3.5,
+        "text-anchor": "start", class: "colorbar-label"
+      }, bar.sign + formatTickLabel(t, true)));
+    }
   }
 
   svg.appendChild(el("text", {
