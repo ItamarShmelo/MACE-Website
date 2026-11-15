@@ -1,5 +1,5 @@
 {
-  "description": "Multigroup Compton scattering matrices",
+  "description": "Multigroup Compton scattering matrices (uniform weight function)",
   "boundaries_keV": [
     1e-05,
     1.1439709860348406e-05,
@@ -136,326 +136,402 @@
   "xi_min": -1.0,
   "xi_max": 1.0,
   "weight_function": "uniform",
+  "cap_x": null,
+  "quantities": {
+    "sigma": {
+      "key": "sigma_matrix",
+      "units": "cm^2"
+    },
+    "dsigma_dT": {
+      "key": "T_dsigma_dT",
+      "units": "cm^2",
+      "note": "stored as T * dsigma/dT; divide by temperature_K for cm^2/K"
+    }
+  },
   "temperatures": [
     {
       "index": 0,
       "temperature_K": 1000.0,
-      "file": "T000_1.000000e+03K.npz"
+      "file": "sigma/T000_1.000000e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T000_1.000000e+03K.npz"
     },
     {
       "index": 1,
       "temperature_K": 1245.197084735033,
-      "file": "T001_1.245197e+03K.npz"
+      "file": "sigma/T001_1.245197e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T001_1.245197e+03K.npz"
     },
     {
       "index": 2,
       "temperature_K": 1550.5157798326254,
-      "file": "T002_1.550516e+03K.npz"
+      "file": "sigma/T002_1.550516e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T002_1.550516e+03K.npz"
     },
     {
       "index": 3,
       "temperature_K": 1930.6977288832495,
-      "file": "T003_1.930698e+03K.npz"
+      "file": "sigma/T003_1.930698e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T003_1.930698e+03K.npz"
     },
     {
       "index": 4,
       "temperature_K": 2404.0991835099717,
-      "file": "T004_2.404099e+03K.npz"
+      "file": "sigma/T004_2.404099e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T004_2.404099e+03K.npz"
     },
     {
       "index": 5,
       "temperature_K": 2993.5772947204905,
-      "file": "T005_2.993577e+03K.npz"
+      "file": "sigma/T005_2.993577e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T005_2.993577e+03K.npz"
     },
     {
       "index": 6,
       "temperature_K": 3727.593720314938,
-      "file": "T006_3.727594e+03K.npz"
+      "file": "sigma/T006_3.727594e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T006_3.727594e+03K.npz"
     },
     {
       "index": 7,
       "temperature_K": 4641.588833612777,
-      "file": "T007_4.641589e+03K.npz"
+      "file": "sigma/T007_4.641589e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T007_4.641589e+03K.npz"
     },
     {
       "index": 8,
       "temperature_K": 5779.692884153313,
-      "file": "T008_5.779693e+03K.npz"
+      "file": "sigma/T008_5.779693e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T008_5.779693e+03K.npz"
     },
     {
       "index": 9,
       "temperature_K": 7196.856730011521,
-      "file": "T009_7.196857e+03K.npz"
+      "file": "sigma/T009_7.196857e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T009_7.196857e+03K.npz"
     },
     {
       "index": 10,
       "temperature_K": 8961.50501946605,
-      "file": "T010_8.961505e+03K.npz"
+      "file": "sigma/T010_8.961505e+03K.npz",
+      "dsigma_dT_file": "dsigma_dT/T010_8.961505e+03K.npz"
     },
     {
       "index": 11,
       "temperature_K": 11158.83992507748,
-      "file": "T011_1.115884e+04K.npz"
+      "file": "sigma/T011_1.115884e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T011_1.115884e+04K.npz"
     },
     {
       "index": 12,
       "temperature_K": 13894.95494373136,
-      "file": "T012_1.389495e+04K.npz"
+      "file": "sigma/T012_1.389495e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T012_1.389495e+04K.npz"
     },
     {
       "index": 13,
       "temperature_K": 17301.95738845894,
-      "file": "T013_1.730196e+04K.npz"
+      "file": "sigma/T013_1.730196e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T013_1.730196e+04K.npz"
     },
     {
       "index": 14,
       "temperature_K": 21544.346900318822,
-      "file": "T014_2.154435e+04K.npz"
+      "file": "sigma/T014_2.154435e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T014_2.154435e+04K.npz"
     },
     {
       "index": 15,
       "temperature_K": 26826.95795279727,
-      "file": "T015_2.682696e+04K.npz"
+      "file": "sigma/T015_2.682696e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T015_2.682696e+04K.npz"
     },
     {
       "index": 16,
       "temperature_K": 33404.849835132445,
-      "file": "T016_3.340485e+04K.npz"
+      "file": "sigma/T016_3.340485e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T016_3.340485e+04K.npz"
     },
     {
       "index": 17,
       "temperature_K": 41595.62163071843,
-      "file": "T017_4.159562e+04K.npz"
+      "file": "sigma/T017_4.159562e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T017_4.159562e+04K.npz"
     },
     {
       "index": 18,
       "temperature_K": 51794.74679231212,
-      "file": "T018_5.179475e+04K.npz"
+      "file": "sigma/T018_5.179475e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T018_5.179475e+04K.npz"
     },
     {
       "index": 19,
       "temperature_K": 64494.667710376205,
-      "file": "T019_6.449467e+04K.npz"
+      "file": "sigma/T019_6.449467e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T019_6.449467e+04K.npz"
     },
     {
       "index": 20,
       "temperature_K": 80308.5722139152,
-      "file": "T020_8.030857e+04K.npz"
+      "file": "sigma/T020_8.030857e+04K.npz",
+      "dsigma_dT_file": "dsigma_dT/T020_8.030857e+04K.npz"
     },
     {
       "index": 21,
       "temperature_K": 100000.0,
-      "file": "T021_1.000000e+05K.npz"
+      "file": "sigma/T021_1.000000e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T021_1.000000e+05K.npz"
     },
     {
       "index": 22,
       "temperature_K": 124519.70847350318,
-      "file": "T022_1.245197e+05K.npz"
+      "file": "sigma/T022_1.245197e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T022_1.245197e+05K.npz"
     },
     {
       "index": 23,
       "temperature_K": 155051.5779832622,
-      "file": "T023_1.550516e+05K.npz"
+      "file": "sigma/T023_1.550516e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T023_1.550516e+05K.npz"
     },
     {
       "index": 24,
       "temperature_K": 193069.77288832498,
-      "file": "T024_1.930698e+05K.npz"
+      "file": "sigma/T024_1.930698e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T024_1.930698e+05K.npz"
     },
     {
       "index": 25,
       "temperature_K": 240409.9183509974,
-      "file": "T025_2.404099e+05K.npz"
+      "file": "sigma/T025_2.404099e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T025_2.404099e+05K.npz"
     },
     {
       "index": 26,
       "temperature_K": 299357.729472049,
-      "file": "T026_2.993577e+05K.npz"
+      "file": "sigma/T026_2.993577e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T026_2.993577e+05K.npz"
     },
     {
       "index": 27,
       "temperature_K": 372759.3720314938,
-      "file": "T027_3.727594e+05K.npz"
+      "file": "sigma/T027_3.727594e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T027_3.727594e+05K.npz"
     },
     {
       "index": 28,
       "temperature_K": 464158.8833612772,
-      "file": "T028_4.641589e+05K.npz"
+      "file": "sigma/T028_4.641589e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T028_4.641589e+05K.npz"
     },
     {
       "index": 29,
       "temperature_K": 577969.2884153313,
-      "file": "T029_5.779693e+05K.npz"
+      "file": "sigma/T029_5.779693e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T029_5.779693e+05K.npz"
     },
     {
       "index": 30,
       "temperature_K": 719685.6730011513,
-      "file": "T030_7.196857e+05K.npz"
+      "file": "sigma/T030_7.196857e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T030_7.196857e+05K.npz"
     },
     {
       "index": 31,
       "temperature_K": 896150.5019466049,
-      "file": "T031_8.961505e+05K.npz"
+      "file": "sigma/T031_8.961505e+05K.npz",
+      "dsigma_dT_file": "dsigma_dT/T031_8.961505e+05K.npz"
     },
     {
       "index": 32,
       "temperature_K": 1115883.9925077478,
-      "file": "T032_1.115884e+06K.npz"
+      "file": "sigma/T032_1.115884e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T032_1.115884e+06K.npz"
     },
     {
       "index": 33,
       "temperature_K": 1389495.494373136,
-      "file": "T033_1.389495e+06K.npz"
+      "file": "sigma/T033_1.389495e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T033_1.389495e+06K.npz"
     },
     {
       "index": 34,
       "temperature_K": 1730195.7388458943,
-      "file": "T034_1.730196e+06K.npz"
+      "file": "sigma/T034_1.730196e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T034_1.730196e+06K.npz"
     },
     {
       "index": 35,
       "temperature_K": 2154434.6900318824,
-      "file": "T035_2.154435e+06K.npz"
+      "file": "sigma/T035_2.154435e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T035_2.154435e+06K.npz"
     },
     {
       "index": 36,
       "temperature_K": 2682695.7952797273,
-      "file": "T036_2.682696e+06K.npz"
+      "file": "sigma/T036_2.682696e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T036_2.682696e+06K.npz"
     },
     {
       "index": 37,
       "temperature_K": 3340484.983513244,
-      "file": "T037_3.340485e+06K.npz"
+      "file": "sigma/T037_3.340485e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T037_3.340485e+06K.npz"
     },
     {
       "index": 38,
       "temperature_K": 4159562.163071843,
-      "file": "T038_4.159562e+06K.npz"
+      "file": "sigma/T038_4.159562e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T038_4.159562e+06K.npz"
     },
     {
       "index": 39,
       "temperature_K": 5179474.679231202,
-      "file": "T039_5.179475e+06K.npz"
+      "file": "sigma/T039_5.179475e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T039_5.179475e+06K.npz"
     },
     {
       "index": 40,
       "temperature_K": 6449466.7710376205,
-      "file": "T040_6.449467e+06K.npz"
+      "file": "sigma/T040_6.449467e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T040_6.449467e+06K.npz"
     },
     {
       "index": 41,
       "temperature_K": 8030857.22139152,
-      "file": "T041_8.030857e+06K.npz"
+      "file": "sigma/T041_8.030857e+06K.npz",
+      "dsigma_dT_file": "dsigma_dT/T041_8.030857e+06K.npz"
     },
     {
       "index": 42,
       "temperature_K": 10000000.0,
-      "file": "T042_1.000000e+07K.npz"
+      "file": "sigma/T042_1.000000e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T042_1.000000e+07K.npz"
     },
     {
       "index": 43,
       "temperature_K": 12451970.84735032,
-      "file": "T043_1.245197e+07K.npz"
+      "file": "sigma/T043_1.245197e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T043_1.245197e+07K.npz"
     },
     {
       "index": 44,
       "temperature_K": 15505157.798326222,
-      "file": "T044_1.550516e+07K.npz"
+      "file": "sigma/T044_1.550516e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T044_1.550516e+07K.npz"
     },
     {
       "index": 45,
       "temperature_K": 19306977.288832493,
-      "file": "T045_1.930698e+07K.npz"
+      "file": "sigma/T045_1.930698e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T045_1.930698e+07K.npz"
     },
     {
       "index": 46,
       "temperature_K": 24040991.835099693,
-      "file": "T046_2.404099e+07K.npz"
+      "file": "sigma/T046_2.404099e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T046_2.404099e+07K.npz"
     },
     {
       "index": 47,
       "temperature_K": 29935772.947204903,
-      "file": "T047_2.993577e+07K.npz"
+      "file": "sigma/T047_2.993577e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T047_2.993577e+07K.npz"
     },
     {
       "index": 48,
       "temperature_K": 37275937.20314938,
-      "file": "T048_3.727594e+07K.npz"
+      "file": "sigma/T048_3.727594e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T048_3.727594e+07K.npz"
     },
     {
       "index": 49,
       "temperature_K": 46415888.33612772,
-      "file": "T049_4.641589e+07K.npz"
+      "file": "sigma/T049_4.641589e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T049_4.641589e+07K.npz"
     },
     {
       "index": 50,
       "temperature_K": 57796928.84153313,
-      "file": "T050_5.779693e+07K.npz"
+      "file": "sigma/T050_5.779693e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T050_5.779693e+07K.npz"
     },
     {
       "index": 51,
       "temperature_K": 71968567.30011514,
-      "file": "T051_7.196857e+07K.npz"
+      "file": "sigma/T051_7.196857e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T051_7.196857e+07K.npz"
     },
     {
       "index": 52,
       "temperature_K": 89615050.1946605,
-      "file": "T052_8.961505e+07K.npz"
+      "file": "sigma/T052_8.961505e+07K.npz",
+      "dsigma_dT_file": "dsigma_dT/T052_8.961505e+07K.npz"
     },
     {
       "index": 53,
       "temperature_K": 111588399.2507748,
-      "file": "T053_1.115884e+08K.npz"
+      "file": "sigma/T053_1.115884e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T053_1.115884e+08K.npz"
     },
     {
       "index": 54,
       "temperature_K": 138949549.4373136,
-      "file": "T054_1.389495e+08K.npz"
+      "file": "sigma/T054_1.389495e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T054_1.389495e+08K.npz"
     },
     {
       "index": 55,
       "temperature_K": 173019573.88458908,
-      "file": "T055_1.730196e+08K.npz"
+      "file": "sigma/T055_1.730196e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T055_1.730196e+08K.npz"
     },
     {
       "index": 56,
       "temperature_K": 215443469.00318778,
-      "file": "T056_2.154435e+08K.npz"
+      "file": "sigma/T056_2.154435e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T056_2.154435e+08K.npz"
     },
     {
       "index": 57,
       "temperature_K": 268269579.52797166,
-      "file": "T057_2.682696e+08K.npz"
+      "file": "sigma/T057_2.682696e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T057_2.682696e+08K.npz"
     },
     {
       "index": 58,
       "temperature_K": 334048498.35132444,
-      "file": "T058_3.340485e+08K.npz"
+      "file": "sigma/T058_3.340485e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T058_3.340485e+08K.npz"
     },
     {
       "index": 59,
       "temperature_K": 415956216.3071843,
-      "file": "T059_4.159562e+08K.npz"
+      "file": "sigma/T059_4.159562e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T059_4.159562e+08K.npz"
     },
     {
       "index": 60,
       "temperature_K": 517947467.92312026,
-      "file": "T060_5.179475e+08K.npz"
+      "file": "sigma/T060_5.179475e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T060_5.179475e+08K.npz"
     },
     {
       "index": 61,
       "temperature_K": 644946677.1037633,
-      "file": "T061_6.449467e+08K.npz"
+      "file": "sigma/T061_6.449467e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T061_6.449467e+08K.npz"
     },
     {
       "index": 62,
       "temperature_K": 803085722.139152,
-      "file": "T062_8.030857e+08K.npz"
+      "file": "sigma/T062_8.030857e+08K.npz",
+      "dsigma_dT_file": "dsigma_dT/T062_8.030857e+08K.npz"
     },
     {
       "index": 63,
       "temperature_K": 1000000000.0,
-      "file": "T063_1.000000e+09K.npz"
+      "file": "sigma/T063_1.000000e+09K.npz",
+      "dsigma_dT_file": "dsigma_dT/T063_1.000000e+09K.npz"
     }
   ]
 }
