@@ -6,14 +6,14 @@ EXTERNAL_DIR="$REPO_ROOT/external"
 CLONE_DIR="$EXTERNAL_DIR/ComptonMatrixExact"
 
 if [ -d "$CLONE_DIR" ]; then
-    echo "ComptonMatrixExact already cloned at $CLONE_DIR"
+    echo "MACE already cloned at $CLONE_DIR"
 else
-    echo "Cloning ComptonMatrixExact into $CLONE_DIR ..."
+    echo "Cloning MACE into $CLONE_DIR ..."
     mkdir -p "$EXTERNAL_DIR"
-    git clone git@github.com:ItamarShmelo/ComptonMatrixExact.git "$CLONE_DIR"
+    git clone git@github.com:ItamarShmelo/MACE.git "$CLONE_DIR"
 fi
 
-echo "Building ComptonMatrixExact ..."
+echo "Building MACE ..."
 cd "$CLONE_DIR"
 uv sync
 uv pip install -e .
