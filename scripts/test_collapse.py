@@ -20,16 +20,16 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "docs" / "py"))
 
-from collapse import collapse  # noqa: E402
+from collapse import collapse, collapse_interp  # noqa: E402
 
 DATA_DIR = ROOT / "docs" / "data"
 
 
 def find_3d_npz() -> Path:
-    """Find the first .npz file with a 3D sigma_matrix."""
-    for path in sorted(DATA_DIR.glob("T*_*K.npz")):
+    """Find the first uniform-weight .npz file with a 3D sigma_matrix."""
+    for path in sorted((DATA_DIR / "uniform").rglob("T*_*K.npz")):
         with np.load(path) as d:
-            if d["sigma_matrix"].ndim == 3:
+            if "sigma_matrix" in d.files and d["sigma_matrix"].ndim == 3:
                 return path
     raise FileNotFoundError("No 3D .npz files found in docs/data/")
 
@@ -64,7 +64,7 @@ def test_identity(npz_bytes: bytes):
 def test_full_collapse(npz_bytes: bytes):
     """Collapsing to 1 group, 1 angle bin must equal the width-weighted sum."""
     ref = np.load(io.BytesIO(npz_bytes))
-    sigma = ref["sigma_matrix"]
+    sigma = ref["sigma_matrix"].astype(np.float64)
     boundaries = ref["boundaries_keV"]
     G, _, M = sigma.shape
     widths = boundaries[1:] - boundaries[:-1]
@@ -86,7 +86,7 @@ def test_full_collapse(npz_bytes: bytes):
 def test_partial_collapse(npz_bytes: bytes):
     """Collapse to 2 groups at the midpoint with 2 angle bins (aligned)."""
     ref = np.load(io.BytesIO(npz_bytes))
-    sigma = ref["sigma_matrix"]
+    sigma = ref["sigma_matrix"].astype(np.float64)
     boundaries = ref["boundaries_keV"]
     G, _, M = sigma.shape
     widths = boundaries[1:] - boundaries[:-1]
@@ -226,6 +226,32 @@ def test_sub_range(npz_bytes: bytes):
     print("  PASS: sub-range collapse ([1, 10, 100] keV)")
 
 
+def test_temperature_interpolation(npz_bytes: bytes):
+    """sigma: power law in T between positive neighbours, linear where one is zero."""
+    ref = np.load(io.BytesIO(npz_bytes))
+    sigma = ref["sigma_matrix"].astype(np.float64)
+    boundaries = ref["boundaries_keV"]
+    T_lo, T_hi = 1.0e5, 2.0e5
+    sigma_hi = 3.0 * sigma
+    sigma_hi[0, :, :] = 0.0  # a row that the cutoff zeroed at the upper temperature
+
+    def npz(s, T):
+        buf = io.BytesIO()
+        np.savez(buf, sigma_matrix=s, boundaries_keV=boundaries, temperature_K=T)
+        return buf.getvalue()
+
+    lo_b, hi_b = npz(sigma, T_lo), npz(sigma_hi, T_hi)
+    G, _, M = sigma.shape
+    for T in (T_lo, np.sqrt(T_lo * T_hi), 1.7e5, T_hi):
+        alpha = np.log(T / T_lo) / np.log(T_hi / T_lo)
+        got = collapse_interp(lo_b, hi_b, T_lo, T_hi, T, boundaries.tolist(), M)
+        expected = np.where(sigma > 0, sigma * 3.0**alpha, 0.0)
+        expected[0] = (1 - alpha) * sigma[0]
+        np.testing.assert_allclose(got, expected, rtol=1e-12, atol=0,
+                                   err_msg=f"Temperature interpolation mismatch at T={T}")
+    print("  PASS: temperature interpolation (power law, linear fallback, endpoints)")
+
+
 # ── Rejection tests ───────────────────────────────────────
 
 
@@ -280,6 +306,7 @@ def main() -> None:
     test_non_divisor_angles(npz_bytes)
     test_arbitrary_grid(npz_bytes)
     test_sub_range(npz_bytes)
+    test_temperature_interpolation(npz_bytes)
     test_rejection_bad_boundaries(npz_bytes)
     test_rejection_bad_angle_bins(npz_bytes)
 
